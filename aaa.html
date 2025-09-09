@@ -1,0 +1,230 @@
+
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>教师节快乐</title>
+  <style>
+    @font-face{font-family: 'MiSansLocal'; src: url('MiSans-Medium.ttf') format('truetype'); font-weight: 500;}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0}
+    body{
+      font-family: MiSansLocal, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg,#FFD3A5 0%, #FD6585 50%, #6A82FB 100%);
+      overflow:hidden;
+      position:relative;
+    }
+    .word{
+      position:absolute;
+      left:0; top:0;
+      padding:6px 10px;
+      border-radius:6px;
+      background:rgba(255,255,255,0.9);
+      color:#222;
+      font-size:20px;
+      white-space:nowrap;
+      pointer-events:none;
+      transform:translate3d(0,0,0);
+    }
+    .heart{
+      position:absolute;
+      font-size:96px;
+      left:50%; top:0;
+      transform:translateX(-50%);
+      pointer-events:none;
+      will-change:transform;
+      filter:drop-shadow(0 8px 24px rgba(0,0,0,0.25));
+    }
+    .message{
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      text-align:center;color:white;text-shadow:0 4px 20px rgba(0,0,0,0.35);
+      font-size:36px;display:none;padding:20px;
+    }
+    .sub{font-size:20px;display:block;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="message" class="message">老师您辛苦了，<span class="sub">教师节快乐！</span></div>
+
+  <script>
+  // Physics-based falling words loader
+  // Loads words.json (array of strings) from same directory
+
+  const container = document.getElementById('container');
+  const message = document.getElementById('message');
+  let words = [];
+
+  fetch('words.json')
+    .then(r=>r.json())
+    .then(arr=>{ if(Array.isArray(arr)) words = arr; else throw new Error('words.json should be an array'); })
+    .catch(err=>{
+      console.warn('加载 words.json 失败，使用默认词语：', err);
+      words = ['感谢','敬业','责任','耐心','关爱','榜样','付出','努力','热情','鼓励'];
+    })
+    .finally(()=>start());
+
+  function createWord(text){
+    const el = document.createElement('div');
+    el.className = 'word';
+    el.textContent = text;
+    container.appendChild(el);
+    return el;
+  }
+
+  // Simulation state per item
+  class Item{
+    constructor(text){
+      this.el = createWord(text);
+      this.width = 0; this.height=0;
+      this.x = Math.random()*(window.innerWidth*0.85) + window.innerWidth*0.025; // margin
+      this.y = - (20 + Math.random()*120);
+      this.vx = (Math.random()-0.5)*20; // small horizontal
+      this.vy = 0;
+      this.landed = false;
+      this.landedAt = 0;
+      this.removed = false;
+      this.updateSize();
+      this.applyStyle();
+    }
+    updateSize(){
+      const r = this.el.getBoundingClientRect();
+      this.width = r.width; this.height = r.height;
+    }
+    applyStyle(){
+      this.el.style.transform = `translate3d(${this.x}px, ${this.y}px, 0)`;
+    }
+    step(dt){
+      const g = 2000; // px/s^2 gravity
+      if(!this.landed){
+        this.vy += g*dt;
+        this.y += this.vy*dt;
+        this.x += this.vx*dt;
+        // bounds for x
+        if(this.x < 8) { this.x = 8; this.vx *= -0.3; }
+        if(this.x + this.width > window.innerWidth - 8){ this.x = window.innerWidth - this.width - 8; this.vx *= -0.3; }
+        // hit bottom
+        const bottomY = window.innerHeight - this.height - 6;
+        if(this.y >= bottomY){
+          this.y = bottomY;
+          this.vy = 0;
+          this.landed = true;
+          this.landedAt = performance.now();
+        }
+      } else {
+        // landed, wait 2s then drop again (fall out)
+        if(performance.now() - this.landedAt >= 2000){
+          // resume falling
+          this.landed = false;
+          this.vy = 800 + Math.random()*400; // initial downward speed
+          this.x += (Math.random()-0.5)*40; // slight nudge
+        }
+        this.y += this.vy*dt;
+        this.x += this.vx*dt*0.3;
+      }
+      this.applyStyle();
+      // removed when fully below viewport
+      if(this.y > window.innerHeight + 200){
+        this.removed = true;
+        this.el.remove();
+      }
+    }
+  }
+
+  let items = [];
+  let lastTime = performance.now();
+  let spawnIndex = 0;
+  let spawnInterval = 350; // ms
+  let lastSpawn = 0;
+  let finishedCount = 0;
+  let heartDropped = false;
+
+  function start(){
+    lastTime = performance.now();
+    lastSpawn = lastTime - spawnInterval;
+    requestAnimationFrame(loop);
+  }
+
+  function loop(now){
+    const dt = Math.min(0.05, (now - lastTime)/1000); // cap dt
+    lastTime = now;
+
+    // spawn words one by one from top
+    if(spawnIndex < words.length && now - lastSpawn >= spawnInterval){
+      const w = words[spawnIndex++];
+      const it = new Item(w);
+      items.push(it);
+      lastSpawn = now;
+    }
+
+    items.forEach(it=> it.step(dt));
+    // count removed items
+    const prevFinished = finishedCount;
+    finishedCount = items.filter(it => it.removed).length;
+
+    // when all words processed and removed, drop heart
+    if(!heartDropped && spawnIndex >= words.length && finishedCount >= words.length){
+      heartDropped = true;
+      dropHeart();
+    }
+
+    // keep items array trimmed
+    items = items.filter(it=>!it.removed);
+
+    requestAnimationFrame(loop);
+  }
+
+  function dropHeart(){
+    const heart = document.createElement('div');
+    heart.className = 'heart';
+    heart.textContent = '❤️';
+    container.appendChild(heart);
+    const rect = heart.getBoundingClientRect();
+    let x = window.innerWidth/2 - rect.width/2;
+    let y = -200;
+    let vy = 0;
+    let landed=false;
+    const targetY = window.innerHeight/2 - rect.height/2 - 40;
+    heart.style.left = '50%';
+    heart.style.transform = `translate(-50%, ${y}px)`;
+
+    function step(now, last){
+      const dt = Math.min(0.05, (now - last)/1000);
+      if(!landed){
+        vy += 1500*dt;
+        y += vy*dt;
+        if(y >= targetY){ y = targetY; landed=true; vy=0; }
+        heart.style.transform = `translate(-50%, ${y}px)`;
+        requestAnimationFrame(t=>step(t, now));
+      } else {
+        // show message and keep heart centered
+        heart.style.transform = `translate(-50%, ${targetY}px) scale(1)`;
+        showMessage();
+      }
+    }
+    requestAnimationFrame(t=>step(t, performance.now()));
+  }
+
+  function showMessage(){
+    message.style.display = 'block';
+    message.style.opacity = '0';
+    message.style.transform = 'translate(-50%, -45%)';
+    // simple fade-in
+    let t0 = performance.now();
+    function fade(now){
+      const p = Math.min(1, (now - t0)/600);
+      message.style.opacity = String(p);
+      message.style.transform = `translate(-50%, calc(-50% + ${20*(1-p)}px))`;
+      if(p<1) requestAnimationFrame(fade);
+    }
+    requestAnimationFrame(fade);
+  }
+
+  // Responsiveness: on resize, update item sizes
+  window.addEventListener('resize', ()=>{ items.forEach(it=>it.updateSize()); });
+
+  </script>
+</body>
+</html>

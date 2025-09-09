@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教师节快乐</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+    <style>
+        @font-face {
+            font-family: 'MiSans';
+            src: url('MiSans-Medium.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg,#FFD3A5 0%, #FD6585 50%, #6A82FB 100%);
+            font-family: 'MiSans', sans-serif;
+        }
+
+        html {
+  height: 100%;
+  background: transparent;
+}
+        
+        .falling-word {
+            position: absolute;
+            pointer-events: none;
+            user-select: none;
+            opacity: 0; /* 初始透明 */
+            transition: opacity 0.5s ease-in;
+        }
+        
+        .final-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 100; /* 确保在最上层显示 */
+            background: rgba(255, 255, 255, 0.15);
+            padding: 1.5rem 2rem;
+            border-radius: 1rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .heart {
+            font-size: 6rem;
+            margin-bottom: 1rem;
+            transform: scale(0) translateY(-50px);
+            opacity: 0;
+            transition: all 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .message-text {
+            font-size: 2rem;
+            font-weight: bold;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 1s ease-in-out 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div class="final-message">
+        <div class="heart">❤️</div>
+        <div class="message-text">老师您辛苦了，教师节快乐！</div>
+    </div>
+
+    <script>
+        // 从words.json加载词语
+        let wordsData = [];
+        
+        // Matter.js 引擎设置
+        const { Engine, World, Bodies, Body, Events } = Matter;
+        
+        // 创建引擎
+        const engine = Engine.create();
+        engine.gravity.y = 0.6; // 调整重力
+        
+        // 创建世界
+        const world = engine.world;
+        
+        // 创建地面
+        const ground = Bodies.rectangle(
+            window.innerWidth / 2, 
+            window.innerHeight + 50, 
+            window.innerWidth, 
+            100, 
+            { isStatic: true }
+        );
+        World.add(world, ground);
+        
+        // 创建容器边界
+        const leftWall = Bodies.rectangle(
+            -50, 
+            window.innerHeight / 2, 
+            100, 
+            window.innerHeight, 
+            { isStatic: true }
+        );
+        
+        const rightWall = Bodies.rectangle(
+            window.innerWidth + 50, 
+            window.innerHeight / 2, 
+            100, 
+            window.innerHeight, 
+            { isStatic: true }
+        );
+        
+        World.add(world, [leftWall, rightWall]);
+        
+        // 词语元素数组
+        const wordElements = [];
+        // 已处理的词语计数
+        let processedWordCount = 0;
+        // 所有词语是否已处理完毕
+        let allWordsProcessed = false;
+        
+        // 创建词语元素并添加到物理世界
+        function createWordBodies() {
+            const container = document.getElementById('container');
+            
+            wordsData.forEach((word, index) => {
+                // 延迟创建每个词语，形成连续出现效果
+                setTimeout(() => {
+                    // 创建DOM元素
+                    const wordElement = document.createElement('div');
+                    wordElement.className = 'falling-word';
+                    wordElement.textContent = word;
+                    
+                    // 随机样式
+                    const fontSize = Math.random() * 20 + 24; // 24-44px
+                    const color = getRandomColor();
+                    
+                    wordElement.style.fontSize = `${fontSize}px`;
+                    wordElement.style.color = color;
+                    wordElement.style.textShadow = `0 2px 4px rgba(0,0,0,0.2)`;
+                    
+                    container.appendChild(wordElement);
+                    
+                    // 计算文本宽度
+                    const width = wordElement.offsetWidth + 20;
+                    const height = fontSize + 10;
+                    
+                    // 随机位置 - 整个屏幕上半部分
+                    const x = Math.random() * (window.innerWidth - width) + width / 2;
+                    const y = Math.random() * (window.innerHeight / 2) - height;
+                    
+                    // 创建物理体
+                    const wordBody = Bodies.rectangle(
+                        x, 
+                        y, 
+                        width, 
+                        height, 
+                        { 
+                            restitution: 0.3, // 弹性
+                            friction: 0.1,    // 摩擦
+                            frictionAir: 0.01 // 空气阻力
+                        }
+                    );
+                    
+                    // 随机初始速度
+                    Body.setVelocity(wordBody, {
+                        x: (Math.random() - 0.5) * 3,
+                        y: Math.random() * 2 + 1
+                    });
+                    
+                    // 随机旋转
+                    Body.setAngularVelocity(wordBody, (Math.random() - 0.5) * 0.05);
+                    
+                    // 存储元素和物理体的关联
+                    wordBody.element = wordElement;
+                    wordBody.index = index;
+                    wordBody.settled = false;
+                    wordBody.settledTime = 0;
+                    wordBody.processed = false;
+                    
+                    World.add(world, wordBody);
+                    wordElements.push(wordBody);
+                    
+                    // 让词语逐渐显示出来
+                    setTimeout(() => {
+                        wordElement.style.opacity = 1;
+                    }, 50);
+                    
+                }, index * 100); // 每个词语间隔200ms
+            });
+        }
+        
+        // 生成随机柔和颜色
+        function getRandomColor() {
+            const colors = [
+                '#ffffff', '#fff3cd', '#d1ecf1', '#d4edda', 
+                '#f8d7da', '#e2e3e5', '#fff5e6', '#f0f7ff'
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+        
+        // 更新词语位置
+        function updateWordPositions() {
+            wordElements.forEach(body => {
+                if (body.element) {
+                    const element = body.element;
+                    // 更新位置和旋转
+                    element.style.left = `${body.position.x - body.bounds.max.x + body.bounds.min.x}px`;
+                    element.style.top = `${body.position.y - body.bounds.max.y + body.bounds.min.y}px`;
+                    element.style.transform = `rotate(${body.angle * (180 / Math.PI)}deg)`;
+                    
+                    // 检测词语是否已经静止
+                    if (!body.settled && Math.abs(body.velocity.x) < 0.05 && Math.abs(body.velocity.y) < 0.05) {
+                        body.settled = true;
+                        body.settledTime = Date.now();
+                    }
+                    
+                    // 静止2秒后开始消失
+                    if (body.settled && !body.processed) {
+                        if (Date.now() - body.settledTime > 2000) {
+                            // 加速消失过程
+                            // const currentOpacity = parseFloat(element.style.opacity) || 1;
+                            // if (currentOpacity > 0) {
+                            //     // 更快的透明度减少速度
+                            //     element.style.opacity = Math.max(0, currentOpacity - 0.05);
+                            //     // 更快地下移
+                            //     Body.setPosition(body, {
+                            //         x: body.position.x,
+                            //         y: body.position.y + 4
+                            //     });
+                            // } else {
+                            //     // 完全消失后标记为已处理
+                            //     body.processed = true;
+                            //     processedWordCount++;
+                                
+                            //     // 从世界中移除
+                                World.remove(world, body);
+                                if (element.parentNode) {
+                                    element.parentNode.removeChild(element);
+                                }
+                                body.element = null;
+                                
+                                // 检查是否所有词语都已处理完毕
+                                // checkAllWordsProcessed();
+                                // console.log("Loading")
+                            // }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 检查是否所有词语都已处理完毕
+        function checkAllWordsProcessed() {
+            console.log("Loading")
+            if (!allWordsProcessed && processedWordCount === wordsData.length) {
+                allWordsProcessed = true;
+                console.log("all Words Processed!")
+                showFinalMessage();
+            }
+        }
+
+        setTimeout(() => {
+            showFinalMessage();
+        }, 10000);
+        
+        // 显示最终祝福信息
+        function showFinalMessage() {
+            // 确保所有词语都已消失
+            setTimeout(() => {
+                const finalMessage = document.querySelector('.final-message');
+                const heart = document.querySelector('.heart');
+                const messageText = document.querySelector('.message-text');
+                
+                // 显示容器
+                finalMessage.style.opacity = 1;
+                
+                // 爱心动画 - 下落并显示
+                setTimeout(() => {
+                    heart.style.transform = 'scale(1) translateY(0)';
+                    heart.style.opacity = 1;
+                    
+                    // 文字动画 - 上移并显示
+                    setTimeout(() => {
+                        messageText.style.transform = 'translateY(0)';
+                        messageText.style.opacity = 1;
+                    }, 300);
+                }, 300);
+            }, 500);
+        }
+        
+        // 运行引擎
+        function runEngine() {
+            Engine.update(engine);
+            updateWordPositions();
+            requestAnimationFrame(runEngine);
+        }
+        
+        // 窗口大小变化时调整边界
+        window.addEventListener('resize', () => {
+            Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 50 });
+            Body.setPosition(rightWall, { x: window.innerWidth + 50, y: window.innerHeight / 2 });
+        });
+        
+        // 从JSON文件加载词语并初始化
+        fetch('words.json')
+            .then(response => response.json())
+            .then(data => {
+                wordsData = data;
+                createWordBodies();
+                runEngine();
+            })
+            .catch(error => {
+                console.error('Error loading words:', error);
+                // 加载失败时使用默认词语
+                wordsData = [
+                    "德高望重", "良师益友", "为人师表", "呕心沥血", "鞠躬尽瘁",
+                    "春风化雨", "润物无声", "循循善诱", "因材施教", "诲人不倦",
+                    "仁心仁术", "博学善导", "甘于奉献", "淡泊名利", "兢兢业业",
+                    "恪尽职守", "以身作则", "大爱无疆", "赤子之心", "桃李芬芳",
+                    
+                    "师恩似海", "恩重如山", "永志不忘", "铭记于心", "感恩戴德",
+                    "寸草春晖", "饮水思源", "知恩图报", "教诲铭心", "情深意重",
+                    "没齿难忘", "感恩不尽", "恩深义重", "感佩于心", "怀恩念旧",
+                    "念兹在兹", "投桃报李", "结草衔环", "感恩怀德", "师恩难忘",
+                    
+                    "三尺讲台", "一支粉笔", "两袖清风", "四季耕耘", "三尺杏坛",
+                    "授业解惑", "传道授业", "舌耕笔耘", "侃侃而谈", "妙语连珠",
+                    "引经据典", "深入浅出", "生动形象", "娓娓道来", "神采飞扬",
+                    "一丝不苟", "精益求精", "废寝忘食", "夜以继日", "孜孜不倦",
+                    
+                    "桃李满天下", "桃李竞芬芳", "春晖遍四方", "弟子三千", "硕果累累",
+                    "前程似锦", "鹏程万里", "青云直上", "事业有成", "万事如意",
+                    "福寿安康", "笑口常开", "岁月静好", "平安顺遂", "健康长寿",
+                    "顺心如意", "吉祥如意", "阖家幸福", "桃李争辉", "教泽绵长",
+                    
+                    "师生情深", "良师引路", "益友相伴", "言传身教", "耳濡目染",
+                    "心领神会", "念念不忘", "情同手足", "亦师亦友", "关怀备至",
+                    "体贴入微", "温暖人心", "启迪心智", "点亮心灯", "指引迷津",
+                    "拨云见日", "春风拂面", "如沐春雨", "情深意切", "念念不忘",
+
+                    '老师', '您', '辛苦', '祝您', '教师节', '快乐', '感谢您', '无私', '教诲', '祝您', '节日快乐', '您', '教导', '如', '春风', '温暖', '心田', '教师节', '到', '愿', '您', '健康', '快乐', '桃李满天下', '您', '是', '成长', '路上', '引路人', '祝您', '节日快乐', '感谢您', '用', '心血', '浇灌', '心灵', '祝您', '节日快乐', '您', '教诲', '如', '春风化雨', '滋润', '心田', '您', '教导', '如', '灯塔', '指引', '前行', '方向', '老师', '您', '关怀', '如', '春风', '温暖', '心灵', '您', '教导', '如', '阳光', '照亮', '前程', '三尺', '讲台', '书写', '人生', '华章', '您', '身影', '永远', '是', '心中', '榜样', '师恩', '如海', '教诲', '如山', '您', '声音', '伴随', '成长', '每', '一步', '感谢您', '把', '青春', '献给', '讲台', '一笔', '一划间', '都', '是', '您', '心血', '教师节', '快乐', '愿', '您', '笑容', '如花', '您', '是', '人生旅途', '中', '最亮', '星', '您', '教诲', '如', '春雨', '润物无声', '有', '您', '才能', '茁壮成长'
+                ];
+                createWordBodies();
+                runEngine();
+            });
+    </script>
+</body>
+</html>
+    
